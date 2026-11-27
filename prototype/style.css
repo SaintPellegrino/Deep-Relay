@@ -1,0 +1,292 @@
+:root {
+  color-scheme: dark;
+  --bg: #10191e;
+  --surface: #142329;
+  --screen: #081117;
+  --ink: #eee8d8;
+  --muted: #a7b5b2;
+  --line: #354a4e;
+  --teal: #9adacb;
+  --amber: #edbd73;
+  --mono: Consolas, "Courier New", monospace;
+  --page-width: 64rem;
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: 1rem; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.5 system-ui, sans-serif;
+}
+.masthead, main {
+  width: min(calc(100% - 3rem), var(--page-width));
+  margin: 0 auto;
+}
+.masthead {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  border-bottom: 1px solid var(--line);
+}
+h1, h2, h3, p, figure, dl, dd { margin: 0; }
+h1, h2, h3, button, summary, figcaption, .tag, nav, .eyebrow, footer, .track a {
+  font-family: var(--mono);
+}
+h1 { line-height: 1; }
+.wordmark {
+  color: var(--ink);
+  font-size: clamp(21px, 3.3vw, 29px);
+  font-weight: 700;
+  letter-spacing: -.09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.wordmark span { color: var(--teal); }
+.tag {
+  color: var(--muted);
+  padding-left: 1rem;
+  border-left: 1px solid var(--line);
+  font-size: 11px;
+  letter-spacing: .015em;
+}
+nav { display: flex; gap: 1.15rem; margin-left: auto; font-size: 12px; }
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--teal); }
+a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 3px;
+}
+main { padding: 12px 0 32px; }
+.play-layout { display: grid; gap: 10px; }
+.game-shell {
+  min-width: 0;
+  background: var(--screen);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 26px #030b1040;
+}
+.game-toolbar, .game-caption {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 7px 12px;
+}
+.game-toolbar { background: var(--surface); border-bottom: 1px solid var(--line); }
+button {
+  min-height: 36px;
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--screen);
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--teal); }
+button:disabled { cursor: wait; opacity: .6; }
+#pause {
+  min-width: 86px;
+  border-color: #f4cc91;
+  background: var(--amber);
+  color: #201b14;
+  font-weight: bold;
+}
+#pause:hover { background: #f5cc94; }
+.sound-switches { display: flex; gap: 5px; }
+.sound-switches button { display: inline-flex; gap: 7px; align-items: center; }
+.sound-switches button::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border: 1px solid #788d8c;
+}
+.sound-switches button[aria-pressed="true"] { color: var(--teal); }
+.sound-switches button[aria-pressed="true"]::before {
+  border-color: var(--teal);
+  background: var(--teal);
+}
+#fullscreen { margin-left: auto; }
+#game {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: var(--screen);
+  image-rendering: auto;
+  outline: 0;
+  cursor: crosshair;
+}
+#game:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+#game:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  max-height: none;
+  object-fit: contain;
+  background: var(--screen);
+}
+.game-caption {
+  min-height: 40px;
+  justify-content: space-between;
+  border-top: 1px solid var(--line);
+}
+#status { flex: 1 1 18rem; color: var(--ink); font-size: 13px; line-height: 1.4; }
+.volume-control { display: flex; align-items: center; gap: 7px; font: 11px var(--mono); color: var(--muted); }
+.volume-control input { width: 90px; height: 24px; margin: 0; accent-color: var(--teal); cursor: pointer; }
+.game-shell noscript p { padding: 8px 12px; }
+.field-notes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 0 18px;
+  align-items: start;
+}
+summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  list-style: none;
+}
+summary::-webkit-details-marker { display: none; }
+summary::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  margin-left: 2px;
+  border-right: 1.5px solid var(--teal);
+  border-bottom: 1.5px solid var(--teal);
+  transform: rotate(-45deg);
+  flex-shrink: 0;
+}
+details[open] > summary::before { transform: translateY(-1px) rotate(45deg); }
+summary:hover, details[open] > summary { color: var(--ink); }
+.field-notes details, .archive { border-bottom: 1px solid var(--line); }
+.guide-body { padding: 3px 0 16px; color: var(--muted); font-size: 13px; }
+.guide-body > p { margin-top: 12px; }
+.guide-body h2 { font-size: 14px; margin: 12px 0 -6px; }
+table { width: 100%; margin-bottom: 14px; border-collapse: collapse; text-align: left; }
+th, td { padding: 5px 5px 5px 0; border-bottom: 1px solid #26383c; }
+th { font-weight: 550; color: var(--ink); }
+thead th { color: var(--muted); font: 11px var(--mono); }
+.session-reset { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.session-reset small { font-size: 12px; }
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.soundtrack-section, .art-section { padding-top: 32px; }
+h2 { font-size: 21px; letter-spacing: -.045em; font-weight: 600; }
+h3 { font-size: 19px; line-height: 1.2; font-weight: 600; }
+.soundtrack-section > h2, .art-section > h2 { margin-bottom: 12px; }
+.track {
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+.lead-track { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: center; gap: 20px; border-left: 3px solid var(--amber); }
+.eyebrow { color: var(--teal); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 6px; }
+.track p:not(.eyebrow) { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+.track audio { display: block; width: 100%; height: 36px; margin: 10px 0 6px; }
+.lead-track audio { margin: 0 0 7px; }
+.track a, .study-links a, footer a:hover { color: var(--teal); text-decoration: underline; text-underline-offset: 3px; }
+.track a { font-size: 11px; }
+.track-grid, .art-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.archive .track-grid, .archive .art-grid { padding-bottom: 14px; }
+figure { align-self: start; min-width: 0; background: var(--surface); border: 1px solid var(--line); }
+figure a { display: block; }
+figure img { display: block; width: 100%; height: auto; }
+.art-section img { image-rendering: auto; }
+figcaption { padding: 8px 12px; color: var(--ink); font-size: 12px; }
+.study-links { padding-bottom: 16px; }
+.study-links p { font-size: 13px; margin-top: 7px; color: var(--muted); }
+footer { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 24px; font-size: 11px; color: var(--muted); }
+footer a:last-child[href="#play"] { margin-left: auto; }
+
+@supports (height: 100svh) {
+  /* On laptops the whole canvas and both rows of controls fit in the first view. */
+  :root { --page-width: clamp(44rem, calc(177.7778svh - 300px), 66rem); }
+}
+@media (max-width: 680px) {
+  .masthead, main { width: calc(100% - 1.5rem); }
+  .masthead { min-height: 55px; gap: 10px; }
+  .tag { border: none; padding: 0; font-size: 10px; }
+  nav { font-size: 11px; gap: 10px; }
+  main { padding-top: 8px; }
+  .game-toolbar, .game-caption { padding: 6px 8px; gap: 6px; }
+  .game-caption { align-items: start; }
+  #status { flex-basis: 100%; }
+  .field-notes { gap: 0 12px; }
+  .lead-track { grid-template-columns: 1fr; gap: 12px; }
+}
+@media (max-width: 500px) {
+  .masthead .tag { max-width: 63px; line-height: 1.1; }
+  .game-toolbar button { min-height: 38px; padding: 4px 6px; font-size: 11px; }
+  #pause { min-width: 54px; }
+  .sound-switches { gap: 4px; }
+  .sound-switches button { gap: 4px; }
+  .field-notes, .track-grid, .art-grid { grid-template-columns: minmax(0,1fr); }
+  .soundtrack-section, .art-section { padding-top: 24px; }
+}
+@media (max-width: 380px) {
+  .game-toolbar { display: grid; grid-template-columns: minmax(0,1fr) auto; }
+  #pause { grid-column: 1 / -1; }
+  #fullscreen { margin: 0; }
+}
+@media (pointer: coarse) {
+  button, .game-toolbar button, summary { min-height: 44px; }
+  .volume-control input { height: 34px; }
+}
+
+/* Signal & Steel player */
+:root { --bg:#101a21; --surface:#192a30; --screen:#09151e; --ink:#efeada; --teal:#a1dac8; --amber:#e9ad7a; }
+body { background:linear-gradient(150deg,#14252d 0,#101a21 27rem); }
+.masthead { min-height:64px; }
+.wordmark { letter-spacing:-.055em; color:#f5ebd9; }
+.wordmark span { color:#e9a078; }
+.tag { color:#b0c6be; }
+.game-shell { border-color:#536764; border-top:3px solid #d78a68; box-shadow:0 9px 36px #040b1254; }
+.game-toolbar { background:#192b32; }
+.game-toolbar button { border-radius:3px; }
+.sound-switches [aria-pressed="true"] { background:#213a3b; border-color:#698b7f; }
+.game-caption { background:#11232a; }
+.guide-body { font-size:14px; }
+.track { background:#172a31; }
+.lead-track { border-left-color:#95beaa; }
+.art-grid figure { border-color:#486362; }
+.art-grid figcaption { color:#d9e4d7; }
+:focus-visible { outline-color:#bee8d2; }
+@media(min-width:900px){.play-layout {gap:12px;} .field-notes {gap:24px;}}
+
+.touch-panel { display:none; }
+.game-shell:fullscreen, .game-shell.expanded-player { display:flex; flex-direction:column; align-items:stretch; justify-content:center; background:#08131a; }
+.game-shell:fullscreen #game,.game-shell.expanded-player #game { min-height:0; flex:1 1 0; width:100%; height:0; object-fit:contain; }
+.game-shell.expanded-player { position:fixed; inset:0; z-index:999; height:100%; height:100dvh; }
+body.player-expanded { overflow:hidden; }
+.game-shell:fullscreen .game-caption,.game-shell.expanded-player .game-caption { display:none; }
+.touch-device .touch-panel { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px max(10px,env(safe-area-inset-right)) 6px max(10px,env(safe-area-inset-left)); touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; background:#101e27; border-top:1px solid #385159; flex:0 0 auto; }
+.touch-panel button { font:600 15px/1 system-ui,sans-serif; min-height:44px; border:1px solid #536c70; color:#e5eee2; background:#22353d; padding:4px; margin:0; touch-action:none; border-radius:7px; }
+.touch-panel button.held { background:#9ad9c9; color:#101d24; border-color:#c5ead9; box-shadow:inset 0 2px 4px #537a70; }
+.touch-dpad { --key:clamp(44px,5.3vmin,58px); display:grid; grid-template:repeat(3,var(--key))/repeat(3,var(--key)); align-items:stretch; grid-template-areas:". up ." "left pivot right" ". down ."; background:#12272e; border-radius:20%; touch-action:none; }
+.touch-dpad [data-action=up]{grid-area:up}.touch-dpad [data-action=down]{grid-area:down}.touch-dpad [data-action=left]{grid-area:left}.touch-dpad [data-action=right]{grid-area:right}.pad-center{grid-area:pivot;align-self:center;justify-self:center;width:12px;height:12px;border:2px solid #45616a;border-radius:50%;}
+.touch-utility { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; }.touch-utility button{min-width:50px;}
+.touch-actions { display:grid;grid-template-columns:repeat(2,clamp(60px,9.8vmin,100px));gap:7px; }.touch-actions button {min-height:clamp(44px,6.4vmin,64px);}
+.touch-actions [data-action=fire] {color:#172128;background:#ecaf80;border-color:#ffe0b6;}
+.touch-actions [data-action=fire].held {background:#ffe1ba;}
+.touch-device #game {touch-action:manipulation;}
+.touch-device .game-shell:not(:fullscreen):not(.expanded-player) #game { max-height:calc(100vh - 242px); max-height:calc(100svh - 242px); object-fit:contain; }
+.touch-device .game-shell { scroll-margin-block:4px; }
+.touch-device .touch-recover {display:inline-flex;}
+.touch-recover {display:none;}
+@media(max-width:420px){.touch-device .touch-panel{padding-inline:5px;gap:2px}.touch-utility{flex-direction:column}.touch-actions{gap:4px;grid-template-columns:repeat(2,56px)}}
+@media(orientation:portrait){.touch-device .game-shell:not(:fullscreen):not(.expanded-player) #game { max-height:none; }}

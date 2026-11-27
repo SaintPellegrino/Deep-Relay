@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Deep Relay | Build 22 / Signal &amp; Steel</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="prototype/style.css?v=22s">
+</head>
+<body data-build="22">
+  <header class="masthead">
+    <h1><a class="wordmark" href="#play">Deep <span>Relay</span></a></h1>
+    <span class="tag" id="build-version">Build 22 / Signal &amp; Steel</span>
+    <nav aria-label="On this page"><a href="#soundtrack">Soundtrack</a><a href="#art">Gallery</a></nav>
+  </header>
+  <main>
+    <section class="play-layout" id="play" aria-label="Playable game">
+      <div class="game-shell">
+        <div class="game-toolbar">
+          <button id="pause" type="button">Play</button>
+          <div class="sound-switches" role="group" aria-label="Game audio">
+            <button id="music" type="button" aria-pressed="true">Music on</button>
+            <button id="sound" type="button" aria-pressed="true">Effects on</button>
+          </div>
+          <button id="fullscreen" type="button">Fullscreen</button>
+        </div>
+        <canvas id="game" width="768" height="432" tabindex="0" aria-label="Deep Relay game. Press Enter or click to play. Use the touch controls, or use arrow keys to move, Space to jump, J to fire and E to interact. Full controls follow the game."></canvas>
+        <div id="touch-controls" class="touch-panel" role="group" aria-label="Touch game controls">
+          <div class="touch-dpad" role="group" aria-label="Movement and aim">
+            <button type="button" data-action="up" aria-label="Move or aim up">▲</button>
+            <button type="button" data-action="left" aria-label="Move left">◀</button>
+            <span class="pad-center" aria-hidden="true"></span>
+            <button type="button" data-action="right" aria-label="Move right">▶</button>
+            <button type="button" data-action="down" aria-label="Move down">▼</button>
+          </div>
+          <div class="touch-utility" role="group" aria-label="Navigation and equipment">
+            <button type="button" data-action="map">Map</button>
+            <button type="button" data-action="repeater" hidden>Repeater</button>
+          </div>
+          <div class="touch-actions" role="group" aria-label="Actions">
+            <button type="button" data-action="charge">Charge</button>
+            <button type="button" data-action="jump">Jump</button>
+            <button type="button" data-action="use">Use</button>
+            <button type="button" data-action="fire">Fire</button>
+          </div>
+        </div>
+        <noscript><p>Enable JavaScript to play Deep Relay.</p></noscript>
+        <div class="game-caption">
+          <span id="status" role="status">Press Enter or choose Play to begin.</span>
+          <div class="volume-control">
+            <label for="music-volume">Music volume</label>
+            <input id="music-volume" type="range" min="0" max="100" value="30">
+          </div>
+        </div>
+      </div>
+      <aside class="field-notes" aria-label="Game guide">
+        <details>
+          <summary>Controls &amp; save</summary>
+          <div class="guide-body">
+            <table>
+              <caption class="visually-hidden">Keyboard and standard controller bindings</caption>
+              <thead><tr><th scope="col">Action</th><th scope="col">Keyboard</th><th scope="col">Controller</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Move / aim</th><td>WASD or arrows</td><td>Stick or D-pad</td></tr>
+                <tr><th scope="row">Jump</th><td>Space</td><td>A</td></tr>
+                <tr><th scope="row">Fire</th><td>J or Z</td><td>X</td></tr>
+                <tr><th scope="row">Charge shot</th><td>Hold K, release</td><td>Hold Y, release</td></tr>
+                <tr><th scope="row">Board / interact</th><td>E</td><td>B</td></tr>
+                <tr><th scope="row">Place repeater</th><td>Q</td><td>Left bumper</td></tr>
+                <tr><th scope="row">Map</th><td>M</td><td>View</td></tr>
+                <tr><th scope="row">Pause</th><td>P or Esc</td><td>Start</td></tr>
+                <tr><th scope="row">Recover to beacon</th><td>R</td><td>Keyboard R</td></tr>
+              </tbody>
+            </table>
+            <p>On a touchscreen, use the left pad to move or aim. Hold Fire to keep firing, hold and release Charge for a charged shot, and tap Use to interact. Hold Up to aim high or to climb striped steel with magnetic wheels. On foot indoors, hold Fire to strafe while aiming in one direction.</p>
+            <p id="controller-status">Keyboard ready. Press a controller button to connect.</p>
+            <p id="save-status">Progress saves at beacons and upgrades.</p>
+            <div class="session-reset">
+              <button class="touch-recover" type="button" id="touch-recover">Return to beacon</button>
+              <button type="button" id="restart" aria-describedby="reset-info">New run</button>
+              <small id="reset-info">Replaces this browser's saved game.</small>
+            </div>
+          </div>
+        </details>
+        <details>
+          <summary>Starting routes</summary>
+          <div class="guide-body">
+            <h2>Down to the pumps</h2>
+            <p>From Service Dock, jump the first block and drop down the marked shaft. Park beside the cyan hatch in Flooded Approach, exit the rover and enter on foot.</p>
+            <h2>Up to Magnetic Rise</h2>
+            <p>Install the magnetic wheels at the Pump Control console and return to the rover. Drive right through Drain Channel to Service Dock. Hold Up against the striped wall and take the upper-right exit to Magnetic Rise.</p>
+            <h2>Into the sound works</h2>
+            <p>For the optional route, stop at the marked gate before the first block at Service Dock. Press E or controller B in the rover. In Listening Cut, fire beneath the rail and watch what turns toward you.</p>
+          </div>
+        </details>
+      </aside>
+    </section>
+    <section class="soundtrack-section" id="soundtrack" aria-label="Soundtrack"><h2>Soundtrack</h2><article class="track lead-track" data-release-card>
+        <div class="track-copy">
+          <p class="eyebrow">Flooded Approach</p>
+          <h3>Low Water Mark</h3>
+          <p>The pump keeps time in 6/8 beneath a glassy electric piano. Listen for the two metal taps that answer each phrase.</p>
+        </div>
+        <div class="track-player">
+          <audio data-release-audition controls preload="none" src="audio/low-water-mark.wav" aria-label="Low Water Mark"></audio>
+          <a href="audio/low-water-mark.wav" download>Download WAV</a>
+        </div>
+      </article>
+      <details class="archive"><summary>The Long Ascent · Magnetic Rise</summary>
+        <div class="track"><audio controls preload="none" src="audio/deep-relay-score20.mp3" aria-label="The Long Ascent"></audio></div>
+      </details>
+    </section>
+    <section class="art-section" id="art" data-release-gallery aria-label="Gameplay gallery">
+      <h2>Gameplay gallery</h2>
+      <div class="art-grid">
+        <figure><a href="art/screenshots/service-dock22.png"><img src="art/screenshots/service-dock22.png" alt="The rover at the Service Dock beneath a salvage crane" width="768" height="432" loading="lazy"></a><figcaption>Service Dock</figcaption></figure>
+        <figure><a href="art/screenshots/flooded-approach22.png"><img src="art/screenshots/flooded-approach22.png" alt="The pilot and parked rover at the flooded pump station" width="768" height="432" loading="lazy"></a><figcaption>Flooded Approach</figcaption></figure>
+        <figure><a href="art/screenshots/magnetic-rise22.png"><img src="art/screenshots/magnetic-rise22.png" alt="The rover beside the climbing wall in Magnetic Rise" width="768" height="432" loading="lazy"></a><figcaption>Magnetic Rise</figcaption></figure>
+        <figure><a href="art/screenshots/service-access22.png"><img src="art/screenshots/service-access22.png" alt="The pilot inside the Service Access relay" width="768" height="432" loading="lazy"></a><figcaption>Service Access</figcaption></figure>
+      </div>
+    </section>
+    <footer><a href="credits.html">Art and sound credits</a></footer>
+  </main>
+  <script src="prototype/touch.js?v=22s"></script>
+  <script src="prototype/input.js?v=22s"></script>
+  <script src="prototype/core.js?v=22s"></script>
+  <script src="audio/offline-samples.js?v=22s"></script>
+  <script src="prototype/audio.js?v=22s"></script>
+  <script src="prototype/music.js?v=22s"></script>
+  <script src="prototype/sprites.js?v=22s"></script>
+  <script src="prototype/environment.js?v=22s"></script>
+  <script src="prototype/hud.js?v=22s"></script>
+  <script src="prototype/weaponfx.js?v=22s"></script>
+  <script src="prototype/game.js?v=22s"></script>
+</body>
+</html>
