@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101c24">
+  <title>Crane Dock | Deep Relay</title>
+  <style>
+*{box-sizing:border-box}
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#101a22;color:#e0e6dc}
+body{margin:0;background:radial-gradient(ellipse at 25% 0%,#253b41 0%,#101a22 62%);min-height:100vh}
+main{width:min(1024px,100%);margin:auto;padding:clamp(12px,3vw,36px)}
+header,.strip,.options,.touch,.touch>div{display:flex;align-items:center;gap:12px}
+header,.strip,.touch{justify-content:space-between} header{margin-bottom:16px}
+.series{font:600 .72rem ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:#adc2bc}
+h1{margin:3px 0 0;font-size:clamp(1.5rem,4vw,2.3rem);line-height:1.06;letter-spacing:-.03em}
+a{color:#f4c48d;text-underline-offset:.24em;font-size:.94rem}
+.frame{position:relative;overflow:hidden;background:#142229;border:1px solid #57706d;box-shadow:0 12px 42px #070e154f}
+canvas{display:block;width:100%;height:auto;aspect-ratio:16/9;background:#13232d;touch-action:none}
+.overlay{position:absolute;inset:0;display:grid;place-items:center;background:#0c171c55}
+.overlay[hidden]{display:none}
+button{font:inherit;color:#e3e9df;border:1px solid #627875;border-radius:4px;background:#263942;padding:6px 12px;cursor:pointer}
+button:disabled{opacity:.45;cursor:auto}
+#play{padding:10px 22px;color:#17232a;background:#f6c894;border-color:#f8d7ae;font-weight:700}
+:focus-visible{outline:3px solid #f6c894;outline-offset:2px}canvas:focus-visible{outline-offset:-4px}
+.strip{min-height:54px;gap:8px}#status{font-weight:550;color:#d8e8db}.options{gap:6px;flex-shrink:0}
+#keys{margin:0;color:#bac8c4;line-height:1.8;font-size:.9rem}kbd{font-family:ui-monospace,monospace;color:#eee1c4}
+.touch{display:none}.touch button{min-height:44px;min-width:40px;touch-action:none;user-select:none}.touch>div{gap:4px}
+@media (pointer:coarse),(max-width:660px){.touch{display:flex;margin:0 0 10px}.touch button{padding:5px 9px}}
+@media(max-width:480px){.strip{align-items:flex-start;padding:8px 0}.options button{padding:5px 8px}#keys{font-size:.8rem}}
+  </style>
+</head>
+<body>
+  <main>
+    <header><div><span class="series">Deep Relay</span><h1>Crane Dock</h1></div><a id="return" href="../index.html">Return to campaign</a></header>
+    <div class="frame" id="frame">
+      <canvas id="dock" width="768" height="432" tabindex="0" aria-label="Crane Dock scrolling rover area" aria-describedby="keys"></canvas>
+      <div class="overlay" id="overlay"><button id="play" type="button">Enter dock</button></div>
+    </div>
+    <div class="strip"><span id="status" role="status" aria-live="polite">Crane Dock</span><div class="options"><button id="audio" type="button" aria-pressed="false">Sound off</button><button id="pause" type="button" disabled>Pause</button></div></div>
+    <div class="touch" aria-label="Rover controls"><div><button type="button" data-control="left" aria-label="Left">◀</button><button type="button" data-control="right" aria-label="Right">▶</button></div><div><button type="button" data-control="up" aria-label="Climb up">▲</button><button type="button" data-control="down" aria-label="Climb down">▼</button><button type="button" data-control="jump">Jump</button><button type="button" data-control="action">Use</button></div></div>
+    <p id="keys"><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd> drive · <kbd>Space</kbd> jump · <kbd>↑</kbd> <kbd>↓</kbd> climb · <kbd>E</kbd> use · <kbd>Esc</kbd> pause</p>
+  </main>
+  <script>
+/* Dockward scrolling annex. Positions and velocities are world units and units per second. */
+(function(root,factory){
+  const api=factory();
+  if(typeof module==="object"&&module.exports)module.exports=api;
+  if(root)root.DockwardModel=api;
+})(typeof globalThis==="object"?globalThis:this,function createDockwardModel() {
+  'use strict';
+  const width=1120, height=440, viewWidth=384, viewHeight=216;
+  const deckY=214, floorY=392, wallX=1056, ladderX=168;
+  const crestEnd=992, wheelSpeed=115;
+  const lift=Object.freeze({x:194,w:59,raised:242,lowered:347});
+  const serviceLedge=Object.freeze({x:267,y:304,w:54,h:8,kind:'serviceLedge'});
+  const sorter=Object.freeze({x:322,y:246,w:586,h:6,kind:'sorter'});
+  const serviceCoil=Object.freeze({x:296,y:serviceLedge.y});
+  const landmarks=Object.freeze({
+    lift,serviceLedge,serviceCoil,sorter,sorterBell:Object.freeze({x:sorter.x+sorter.w-68}),
+    cab:{x:121,y:deckY}, ladder:{x:ladderX,y:deckY,bottom:floorY},
+    pump:{x:948,y:floorY}, rail:{x:wallX,y:deckY,bottom:floorY}, start:{x:112,y:floorY}
+  });
+  const solids=[
+    {x:0,y:floorY,w:width,h:height-floorY,kind:'floor'},
+    {x:50,y:deckY,w:96,h:12,kind:'catwalk'},
+    {x:146,y:deckY,w:44,h:12,kind:'hatch'},
+    {x:190,y:deckY,w:826,h:12,kind:'catwalk'},
+    {x:322,y:252,w:53,h:40,kind:'shoulder'},
+    {x:375,y:252,w:325,h:80,kind:'vault'},
+    {x:700,y:252,w:56,h:40,kind:'shoulder'},
+    {x:wallX,y:196,w:32,h:196,kind:'magneticWall'},
+    serviceLedge,sorter
+  ];
+  for(const solid of solids)Object.freeze(solid);
+  Object.freeze(solids);
+  const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
+  const overlaps=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+  function create(saved){
+    const old=saved?.flags||saved||{}, shortcut=old.shortcut===true;
+    const flags={magnet:shortcut||old.magnet===true,shortcut};
+    if(shortcut&&old.serviceCoil===true)flags.serviceCoil=true;
+    return {
+      flags,liftY:shortcut?lift.lowered:lift.raised,
+      p:{x:landmarks.start.x,y:floorY-17,w:24,h:17,vx:0,vy:0,face:1,onGround:true,climbing:''},
+      camera:{x:0,y:132,zoom:.76},time:0,event:'',
+      heldJump:false,heldAction:false,jumpBuffer:0,coyoteTime:.08
+    };
+  }
+  function snapshot(state){
+    // The new upgrade is additive; a v1 cab save already has its crane cable released.
+    return {version:1,flags:{...state.flags}};
+  }
+  function nearFloorPoint(p,point,reach){
+    return Math.abs(p.x+p.w/2-point.x)<=reach&&Math.abs(p.y+p.h-point.y)<=10;
+  }
+  function nearWall(p){
+    const gap=wallX-(p.x+p.w);
+    return gap>=-.01&&gap<=9&&p.y+p.h>deckY+1&&p.y<floorY;
+  }
+  function prompt(state){
+    const p=state.p,f=state.flags;
+    if(p.climbing==='crest')return '';
+    if(p.climbing==='wall')return 'Hold up to crest the rail';
+    if(p.climbing==='ladder')return 'Up / down to climb';
+    if(nearFloorPoint(p,landmarks.cab,34))return f.shortcut?'Crane winch released':'Use the winch to lower the service lift and ladder';
+    if(nearFloorPoint(p,serviceCoil,27)&&f.serviceCoil)return 'Suspension coil installed';
+    if(f.shortcut&&nearFloorPoint(p,landmarks.ladder,21))return 'Down to take the return ladder';
+    if(f.shortcut&&nearFloorPoint(p,{x:ladderX,y:floorY},22))return 'Up to take the return ladder';
+    if(nearFloorPoint(p,landmarks.pump,36))return f.magnet?'Magnetic wheels online':'Use the pump console to power the magnetic wheels';
+    if(nearWall(p))return f.magnet?'Hold up against the magnetic rail':'Magnetic rail offline';
+    return '';
+  }
+  function cue(s,name){
+    if(s.event==='power'||s.event==='shortcut'||s.event==='serviceCoil')return;
+    if(s.event!=='liftDock'||name==='serviceCoil')s.event=name;
+  }
+  function use(s){
+    const p=s.p;
+    if(!s.flags.magnet&&nearFloorPoint(p,landmarks.pump,36)){
+      s.flags.magnet=true;cue(s,'power');
+    }else if(!s.flags.shortcut&&nearFloorPoint(p,landmarks.cab,34)){
+      s.flags.shortcut=true;cue(s,'shortcut');
+    }
+  }
+  function overLift(p){
+    return p.x<lift.x+lift.w&&p.x+p.w>lift.x;
+  }
+  function lowerLift(s,dt){
+    if(!s.flags.shortcut||s.liftY>=lift.lowered)return;
+    const p=s.p,old=s.liftY;
+    s.liftY=Math.min(lift.lowered,old+48*dt);
+    if(p.onGround&&!p.climbing&&overLift(p)&&Math.abs(p.y+p.h-old)<.01)p.y+=s.liftY-old;
+    if(s.liftY===lift.lowered)cue(s,'liftDock');
+  }
+  function moveX(p,dt){
+    const dx=p.vx*dt;
+    if(!dx)return;
+    const old=p.x;
+    p.x=clamp(p.x+dx,0,width-p.w);
+    for(const block of solids){
+      if(!overlaps(p,block))continue;
+      if(dx>0&&old+p.w<=block.x+.001)p.x=Math.min(p.x,block.x-p.w);
+      if(dx<0&&old>=block.x+block.w-.001)p.x=Math.max(p.x,block.x+block.w);
+      p.vx=0;
+    }
+  }
+  function moveY(s,dt){
+    const p=s.p,old=p.y,dy=p.vy*dt,wasGround=p.onGround,impact=p.vy;
+    p.y+=dy;p.onGround=false;    for(const block of solids){
+      if(!overlaps(p,block))continue;
+      if(dy>0&&old+p.h<=block.y+.001){
+        p.y=block.y-p.h;p.onGround=true;p.vy=0;
+      }else if(dy<0&&old>=block.y+block.h-.001){
+        p.y=block.y+block.h;p.vy=0;
+      }
+    }
+    // Only the top of the suspended grating carries weight. The road below stays traversable.
+    if(dy>0&&overLift(p)&&old+p.h<=s.liftY+.001&&p.y+p.h>=s.liftY){
+      p.y=s.liftY-p.h;p.vy=0;p.onGround=true;
+    }
+    if(p.onGround&&!wasGround&&impact>130)cue(s,'land');
+  }
+  function rail(s,input,dt){
+    const p=s.p;
+    if(p.climbing==='crest'){
+      p.vx=-wheelSpeed;p.x=Math.max(crestEnd,p.x-wheelSpeed*dt);p.face=-1;
+      if(p.x<=crestEnd){p.climbing='';p.onGround=true;p.vx=0;s.coyoteTime=.08;}
+      return;
+    }
+    const vert=Number(!!input.down)-Number(!!input.up);
+    p.vx=0;p.vy=vert*88;
+    p.y=clamp(p.y+p.vy*dt,deckY-p.h,floorY-p.h);
+    if(vert<0&&p.y<=deckY-p.h){
+      p.climbing='crest';p.vy=0;
+    }else if(vert>0&&p.y>=floorY-p.h){
+      p.climbing='';p.onGround=true;p.vy=0;
+    }else if(input.left&&!input.up&&!input.down){
+      p.climbing='';p.vx=-wheelSpeed*.75;p.vy=0;
+    }
+  }
+  function ladder(s,input,dt){
+    const p=s.p,vert=Number(!!input.down)-Number(!!input.up);
+    p.vx=0;p.vy=vert*82;
+    p.y=clamp(p.y+p.vy*dt,deckY-p.h,floorY-p.h);
+    if((vert<0&&p.y===deckY-p.h)||(vert>0&&p.y===floorY-p.h)){
+      p.climbing='';p.vy=0;p.onGround=true;s.coyoteTime=.08;
+    }
+  }
+  function substep(s,input,dt){
+    const p=s.p;
+    lowerLift(s,dt);
+    if(!p.climbing){
+      const lower=nearFloorPoint(p,{x:ladderX,y:floorY},19);
+      const upper=nearFloorPoint(p,landmarks.ladder,19);
+      if(s.flags.shortcut&&((input.up&&!input.down&&lower)||(input.down&&!input.up&&upper))){
+        p.climbing='ladder';p.x=ladderX-p.w/2;p.onGround=false;s.jumpBuffer=0;cue(s,'climb');
+      }else if(s.flags.magnet&&input.up&&!input.down&&nearWall(p)){
+        p.climbing='wall';p.x=wallX-p.w;p.face=1;p.onGround=false;s.jumpBuffer=0;cue(s,'climb');
+      }
+    }
+    if(p.climbing==='ladder')ladder(s,input,dt);
+    else if(p.climbing)rail(s,input,dt);
+    else{
+      const direction=Number(!!input.right)-Number(!!input.left);
+      if(direction)p.face=direction;
+      // The powered rollers carry freight east to the pump unloading bay.
+      const onSorter=p.onGround && Math.abs(p.y+p.h-sorter.y)<.01 &&
+        p.x+p.w>sorter.x && p.x<sorter.x+sorter.w;
+      const beltSpeed=onSorter && s.flags.magnet ? 170 : 0;
+      const target=direction*wheelSpeed+beltSpeed,difference=target-p.vx;
+      const accel=(direction?730:900)*dt;
+      p.vx+=clamp(difference,-accel,accel);
+      s.coyoteTime=p.onGround?.08:Math.max(0,s.coyoteTime-dt);
+      if(s.jumpBuffer>0&&s.coyoteTime>0){
+        p.vy=s.flags.serviceCoil?-253:-221;p.onGround=false;s.coyoteTime=0;s.jumpBuffer=0;cue(s,'jump');
+      }
+      s.jumpBuffer=Math.max(0,s.jumpBuffer-dt);
+      const oldNose=p.x+p.w;
+      moveX(p,dt);p.vy=Math.min(360,p.vy+480*dt);moveY(s,dt);
+      const trip=landmarks.sorterBell.x;
+      if(beltSpeed && oldNose<trip && p.x+p.w>=trip)cue(s,'sorterBell');
+    }
+    if(s.flags.shortcut&&!s.flags.serviceCoil&&p.onGround&&
+       Math.abs(p.y+p.h-serviceLedge.y)<.01&&Math.abs(p.x+p.w/2-serviceCoil.x)<17){
+      s.flags.serviceCoil=true;cue(s,'serviceCoil');
+    }
+    const cam=s.camera;
+    // Frame the cab and the road together, even on the return trip upstairs.
+    const open=clamp((p.x-180)/245,0,1);
+    const blend=open*open*(3-2*open);
+    cam.zoom+=(.76+.24*blend-cam.zoom)*(1-Math.exp(-5*dt));
+    const frameW=viewWidth/cam.zoom,frameH=viewHeight/cam.zoom;
+    const targetX=clamp(p.x+p.w/2-frameW*.5+(p.climbing?0:p.vx*.40),0,width-frameW);
+    const feet=p.y+p.h;
+    const followY=feet-frameH*.72;
+    // Look down the unloading shaft before the belt takes the rover over its lip.
+    const approach=clamp((p.x-(sorter.x+sorter.w-246))/142,0,1);
+    const bay=clamp((wallX-40-p.x)/50,0,1);
+    const shaft=approach*bay*clamp((feet-deckY)/(sorter.y-deckY),0,1);
+    const trackedY=followY+shaft*Math.max(0,floorY+14-frameH-followY);
+    const targetY=clamp(132+(trackedY-132)*blend,0,height-frameH);
+    cam.x=clamp(cam.x+(targetX-cam.x)*(1-Math.exp(-5*dt)),0,width-frameW);
+    cam.y=clamp(cam.y+(targetY-cam.y)*(1-Math.exp(-6*dt)),0,height-frameH);
+    s.time+=dt;
+  }
+  function step(s,input={},elapsed=1/60){
+    s.event='';
+    if(!Number.isFinite(elapsed)||elapsed<=0)return s;
+    if(input.jump&&!s.heldJump)s.jumpBuffer=.10;
+    if(input.action&&!s.heldAction)use(s);
+    s.heldJump=!!input.jump;s.heldAction=!!input.action;
+    const dt=Math.min(.10,elapsed),ticks=Math.ceil(dt*120);
+    for(let i=0;i<ticks;i++)substep(s,input,dt/ticks);
+    return s;
+  }
+  return Object.freeze({width,height,viewWidth,viewHeight,solids,landmarks,create,step,snapshot,prompt});
+});
+  </script>
+  <script>
+(function(root){
+  const api=(function dockPaint(){
+  'use strict';
+  const W=1120,H=440,VW=384,VH=216;
+  const beds=[['#344753','#40565c','#52635f'],['#384754','#415556','#4a5d5c'],['#435356','#586762','#67726a']];
+  const round=Math.round;
+  let backing=null;
+  function box(c,x,y,w,h,ink){c.fillStyle=ink;c.fillRect(x,y,w,h);}
+  function bar(c,x,y,xx,yy,ink,weight=1){c.strokeStyle=ink;c.lineWidth=weight;c.beginPath();c.moveTo(x,y);c.lineTo(xx,yy);c.stroke();}
+  function face(c,points,ink){c.fillStyle=ink;c.beginPath();c.moveTo(points[0][0],points[0][1]);for(let i=1;i<points.length;i++)c.lineTo(points[i][0],points[i][1]);c.closePath();c.fill();}
+  function oval(c,x,y,rx,ry,ink){c.fillStyle=ink;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill();}
+  function ring(c,x,y,rx,ry,ink,weight=1){c.strokeStyle=ink;c.lineWidth=weight;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.stroke();}
+  function arch(c,x,y,rx,ry,ink,weight){c.strokeStyle=ink;c.lineWidth=weight;c.beginPath();c.ellipse(x,y,rx,ry,0,Math.PI,2*Math.PI);c.stroke();}
+  function hash(a,b){let n=Math.imul(a+71,0x1b873593)^Math.imul(b+41,0x5bd1e995);n=Math.imul(n^(n>>>16),0x45d9f3b);return (n^(n>>>16))>>>0;}
+  function gradient(c,x,y,xx,yy,stops){const q=c.createLinearGradient(x,y,xx,yy);for(const [at,ink] of stops)q.addColorStop(at,ink);return q;}
+  function halo(c,x,y,r,center){const q=c.createRadialGradient(x,y,1,x,y,r);q.addColorStop(0,center);q.addColorStop(1,'rgba(244,179,97,0)');box(c,x-r,y-r,2*r,2*r,q);}
+  function bolt(c,x,y){box(c,x,y,2,1.5,'#243339');box(c,x+.5,y-.5,1,1,'#a09c83');}
+  function lamp(c,x,y,lit=true){
+    if(lit)halo(c,x,y+3,12,'rgba(247,173,78,.18)');
+    box(c,x-3,y-2,6,2,'#222e32');box(c,x-2.5,y,5,5,'#485155');
+    box(c,x-1.5,y+.5,3,3.5,lit?'#eeb676':'#6a675b');if(lit)box(c,x-1,y+1,1,2,'#fff0ae');
+    box(c,x-3,y+4,6,1,'#29373b');
+  }
+  function pipe(c,x,y,length,vertical,radius=3){
+    c.save();c.translate(x,y);if(vertical)c.rotate(Math.PI/2);
+    box(c,0,-radius,length,radius*2,'#24383e');box(c,0,-radius,length,1,'#7b8274');
+    box(c,0,1-radius,length,1,'#586d68');box(c,0,radius-1,length,1,'#192b35');
+    for(let i=7;i<length-2;i+=22){box(c,i,-radius-1,3,2*radius+2,'#37484b');box(c,i,-radius-1,1,2*radius+1,'#7d887a');}
+    c.restore();
+  }
+  function distant(c,cx,cy,zoom){
+    box(c,0,0,VW,VH,gradient(c,0,0,0,VH,[[0,'#273947'],[.33,'#426468'],[.72,'#648b83'],[1,'#8a9989']]));
+    c.save();c.scale(zoom,zoom);c.translate(-round(cx*.18),-round(cy*.14));
+    face(c,[[-10,132],[38,102],[72,115],[114,70],[150,88],[189,64],[221,97],[257,82],[312,119],[358,76],[396,97],[433,66],[484,100],[545,84],[610,112],[610,270],[-10,270]],'#49686c');
+    for(let i=0;i<14;i++){
+      const x=i*46-22,y=77+hash(i,5)%41,w=15+hash(i,7)%22;
+      box(c,x,y,w,155,'#3d5b64');box(c,x+w-4,y+1,3,115,'#527077');box(c,x+3,y-5,w-7,5,'#45676b');
+      if(i%3===0){bar(c,x+w/2,y-5,x+w/2+1,y-31,'#405d64');bar(c,x+w/2+1,y-31,x+43,y-22,'#405d64');}
+      for(let j=0;j<3;j++)box(c,x+3+j*4,y+10,1.5,2,j===0&&i%4===0?'#c4a984':'#748b84');    }
+    // Cast-steel viaduct beyond the cavern mouth; nearer arches move on their own plane.
+    for(let i=-1;i<10;i++){const x=i*71;arch(c,x+35,163,34,27,'#344e59',5);box(c,x-2,160,4,85,'#344e59');}
+    box(c,-10,131,660,5,'#3b5963');bar(c,-10,130,625,130,'#72908c');
+    c.restore();
+    c.save();c.scale(zoom,zoom);c.translate(-round(cx*.45),-round(cy*.35));
+    for(let i=0;i<12;i++){const x=i*78-25;bar(c,x,33,x+79,70,'#405e62',1);bar(c,x+1,34,x+2,265,'#314f59',4);bar(c,x-1,64,x+7,69,'#87978a');}
+    c.restore();
+  }
+  function masonry(c,x,y,w,h,salt){
+    if(w<=0||h<=0)return;
+    c.save();c.beginPath();c.rect(x,y,w,h);c.clip();
+    box(c,x,y,w,h,'#22333d');
+    let top=y;
+    for(let row=0;top<y+h;row++){
+      const rh=10+(hash(row,salt)%7);let left=x-(row%2)*13;
+      for(let col=0;left<x+w;col++){
+        const n=hash(col+salt,row+salt);const bw=16+(n%21);const low=top+rh-1;
+        const p=beds[(n>>>8)%beds.length],chip=1+(n%3);
+        face(c,[[left+1,top+2],[left+chip,top+1],[left+bw-3,top+.5],[left+bw-1,top+2],[left+bw-1,low-1],[left+bw-3,low],[left+1,low+.5]],p[0]);
+        face(c,[[left+2,top+2],[left+bw-3,top+1],[left+bw*.66,top+3.5],[left+3,top+4]],p[1]);
+        if((n&3)===0){bar(c,left+3,top+2,left+8,top+2,p[2],.5);bar(c,left+bw-7,low-1,left+bw-4,low-2,'#263b41',.75);}
+        if(n%7===0){bar(c,left+6,top+rh*.5,left+9,top+rh*.5+1.5,'#64746b',.5);bar(c,left+9,top+rh*.5+1.5,left+13,top+rh*.5+1,'#64746b',.5);}
+        left+=bw;
+      }top+=rh;
+    }c.restore();
+  }
+  function vaultBack(c,x,y,r,height){
+    const pier=6;
+    box(c,x-r-pier,y,pier,height,'#293f48');box(c,x+r,y,pier,height,'#293f48');
+    arch(c,x,y,r+5,r*.78+4,'#263d45',9);arch(c,x,y,r+4,r*.78+3,'#666d63',5);
+    arch(c,x,y,r+2,r*.78+2,'#4c5b58',2);
+    for(let i=0;i<14;i++){const a=Math.PI+i*Math.PI/13,ca=Math.cos(a),sa=Math.sin(a);
+      bar(c,x+ca*(r+.8),y+sa*(r*.78+1),x+ca*(r+7),y+sa*(r*.78+7),'#33464b',1.3);}
+    box(c,x-r-pier-.5,y,8,3,'#798074');box(c,x+r-.5,y,8,3,'#798074');
+  }
+  function upperRail(c,x0,x1,y){
+    if(x1<=x0)return;
+    for(let x=x0;x<=x1;x+=20){box(c,x,y-12,1.5,12,'#3d5559');box(c,x,y-12,.5,12,'#849087');}
+    box(c,x0,y-12,x1-x0,1.5,'#687c79');box(c,x0,y-6,x1-x0,.75,'#586c6b');
+  }
+  function crossBeam(c,x,y,length){
+    box(c,x,y,length,2,'#7f8680');box(c,x,y+2,length,8,'#233741');box(c,x,y+10,length,1,'#192d37');
+    for(let i=0;i<length-3;i+=24){const w=Math.min(24,length-i);bar(c,x+i,y+9,x+i+w*.5,y+3,'#576b66',1.5);bar(c,x+i+w*.5,y+3,x+i+w,y+9,'#455953',1.5);bolt(c,x+i+1,y+4);}
+  }
+  function cab(c){
+    // Counterweight and crane boom give the cabin a silhouette that reads from below.
+    box(c,73,153,6,61,'#503e37');box(c,74,153,1,59,'#b47e4b');
+    for(let y=157;y<196;y+=11)bar(c,74,y+7,79,y,'#86694f',2);
+    face(c,[[70,152],[124,109],[208,106],[207,112],[128,116],[82,159]],'#3c4040');
+    bar(c,72,151,125,109,'#d1985b',2);bar(c,125,109,207,106,'#d1985b',2);bar(c,127,116,206,111,'#9d6745',1.5);
+    for(let i=0;i<7;i++){const x=127+i*11;bar(c,x,110,x+7,114,'#a16e4d');}
+    face(c,[[80,173],[87,166],[141,166],[147,172],[147,213],[81,213]],'#293b40');
+    box(c,84,173,60,38,'#af764a');box(c,84,169,56,3,'#d1995c');box(c,84,175,59,1,'#e3af6b');
+    box(c,87,178,53,24,'#263c42');
+    for(let i=0;i<3;i++){const x=89+i*17;box(c,x,179,14,21,gradient(c,x,179,x+13,200,[[0,'#41716e'],[1,'#b99b65']]));face(c,[[x+2,179],[x+6,179],[x,188],[x,184]],'#9cb3a0');}
+    for(const x of [87,104,121,139]){box(c,x,178,2,25,'#78563e');box(c,x,178,.5,25,'#cea46d');}
+    box(c,82,202,63,6,'#82563e');box(c,85,207,56,1,'#d09559');box(c,80,211,68,2,'#333e41');
+    for(const xx of [84,143])for(const yy of [173,205])bolt(c,xx,yy);
+    for(let x=128;x<137;x+=2)box(c,x,204,.7,3,'#4c4b42');
+    lamp(c,86,162); 
+    // Cab floor stands at the same height as the catwalk deck.
+  }
+  function floor(c,x,w,kind){
+    const y=392;
+    if(kind==='stone'){
+      masonry(c,x,y,w,H-y,17);
+      box(c,x,y,w,1.5,'#abb4a3');box(c,x,y+1.5,w,2,'#647b75');box(c,x,y+4,w,.75,'#344f57');
+      for(let i=x+11;i<x+w;i+=27){bar(c,i,y,i-2,y+3,'#3e5258',1);box(c,i+4,y+1,7,.5,'#cad0ae');}
+    }else if(kind==='grate'){
+      box(c,x,y,w,H-y,'#22363e');crossBeam(c,x,y+5,w);
+      for(let i=x;i<x+w;i+=6){box(c,i,y,4,4,'#76847e');box(c,i,y,4,.75,'#b5b9a3');box(c,i+2,y+2,1.5,2,'#485a57');}
+      for(let i=x+4;i<x+w;i+=27)bar(c,i,y+20,i+10,y+34,'#314d52',2);
+    }else{
+      box(c,x,y,w,H-y,'#3d5156');
+      for(let i=x;i<x+w;i+=28){const span=Math.min(28,x+w-i);box(c,i+1,y+1,span-2,5,'#8f978a');box(c,i+1,y+1,span-2,1,'#bec2ac');
+        box(c,i,y+7,span-1,13,'#485d62');box(c,i+2,y+7,span-4,.7,'#748782');bolt(c,i+4,y+10);if(span>15)bolt(c,i+span-7,y+10);}
+      crossBeam(c,x,y+21,w);
+    }
+  }
+  function serviceBays(c){
+    // Recessed brick pump bays, with the outer arch rim in front of the inset machinery.
+    for(const [x,w,top,style] of [[38,127,251,0],[205,100,264,1],[380,107,298,1],[534,100,294,0],[685,87,268,1]]){
+      const base=392,cx=x+w/2,rx=w*.43;
+      box(c,x,top+29,w,base-top-29,gradient(c,x,top,x+w,base,[[0,'#283e49'],[.67,'#344d51'],[1,'#1c333d']]));
+      face(c,[[x,top+30],[x+7,top+13],[x+27,top+2],[x+w-23,top+2],[x+w-6,top+16],[x+w,top+30]],'#293e47');
+      const well=gradient(c,x,top,x,base,[[0,'#283e49'],[.6,'#3a585a'],[1,'#2b4149']]);
+      box(c,x+6,top+30,w-12,base-top-31,well);arch(c,cx,top+30,rx,26,'#52655e',4);
+      for(let yy=top+40;yy<base;yy+=12){
+        bar(c,x+4,yy,x+w-4,yy,'#30464c',.8);
+        for(let px=x+8+((yy-top)%5)*3;px<x+w-8;px+=21)bar(c,px,yy,px,Math.min(yy+12,base),'#2d444c',.6);
+      }
+      for(const xx of [x+3,x+w-7]){box(c,xx,top+30,5,base-top-30,'#465b59');box(c,xx+.5,top+30,.6,base-top-30,'#718173');
+        for(let y=top+39;y<base-3;y+=14)box(c,xx-.5,y,6,1.5,'#2a4248');}
+      if(style===0){
+        const ax=cx-11,ay=base-41;pipe(c,ax,top+26,ay-top-28,true,3);
+        oval(c,ax+1,ay+1,18,19,'#213641');ring(c,ax,ay,16,16,'#686e5c',3);
+        for(let j=0;j<6;j++){const v=j*Math.PI/3;bar(c,ax,ay,ax+Math.cos(v)*13,ay+Math.sin(v)*13,'#8b8064',1.3);}
+        oval(c,ax,ay,4,4,'#41606a');ring(c,ax,ay,3,3,'#a99773',1);
+        pipe(c,cx+13,base-25,w/2-14,false,2.5);box(c,cx+11,base-29,5,8,'#63716b');
+      }else{
+        for(let j=0;j<4;j++){
+          const px=cx-14+j*9;pipe(c,px,top+26,base-top-37,true,j%2?1.5:2.5);
+          box(c,px-3,top+37,6,2,'#889084');
+        }
+      }
+      box(c,x+4,base-6,w-8,3,'#21353d');box(c,x+5,base-6,w-11,1,'#61776f');lamp(c,x+10,top+25,true);
+    }
+    // A cast-iron mounting foot and a second diagonal brace anchor the crane to the quay.
+    face(c,[[68,214],[74,214],[117,304],[111,307]],'#4c4840');
+    bar(c,70,216,112,305,'#947750',2);
+    box(c,56,218,10,166,'#39474b');box(c,55,219,2,165,'#897656');box(c,63,219,2,165,'#293d45');
+    for(let y=224;y<359;y+=17){face(c,[[58,y],[62,y],[58,y+13]],'#68664e');bolt(c,59,y+1);}
+    face(c,[[52,374],[54,363],[65,363],[72,374],[77,385],[47,385]],'#605f50');
+    box(c,48,384,29,3,'#263b43');box(c,51,383,22,1,'#8a8975');
+    // A soft broken reflection keeps the wet quay distinct from the grated machinery floor.
+    for(let i=0;i<46;i++){const x=hash(i,44)%787,y=384+hash(i,42)%8;
+      box(c,x,y,2+hash(i,47)%12,.6,i%4?'#6b867729':'#cca47243');}
+    for(let j=0;j<7;j++){const x=260+j*2.3,y=287+(hash(j,69)%9);
+      box(c,x,y,.7,383-y,j%2?'#9abdac48':'#82ada63d');}
+    // Shaft shell and tall splays from a broken skylight on the right, behind the impeller.
+    for(const x of [828,1012]){box(c,x,65,7,327,'#33484e');box(c,x,66,1.5,326,'#758176');
+      for(let y=78;y<390;y+=29){box(c,x-1,y,9,2,'#69766b');bolt(c,x+2,y+3);}}
+    for(let i=0;i<5;i++){const x=848+i*39;bar(c,x,63,x+18,92,'#364c51',3);bar(c,x,64,x+18,92,'#829083',.8);}
+    face(c,[[847,78],[859,78],[912,208],[882,208]],'rgba(216,211,153,.085)');
+    face(c,[[850,78],[852,78],[902,208],[897,208]],'rgba(236,212,153,.10)');
+  }
+  function drawStatic(c){
+    // Mid-ground architecture lives behind the level material, with all lit edges aligned to the collision plane.
+    for(let x=101;x<810;x+=130)vaultBack(c,x,288,56,103);
+    serviceBays(c);
+    for(let x=75;x<735;x+=64){pipe(c,x,358,54,false,2);box(c,x+7,360,3,18,'#30454a');}
+    cab(c);
+    const shapes=[[322,252,53,40],[375,252,325,80],[700,252,56,40]];
+    for(const [x,y,w,h] of shapes){
+      masonry(c,x,y,w,h,63);box(c,x,y,w,6,'#23353e');
+      box(c,x,y+h-5,w,3,'#596961');box(c,x,y+h-2,w,2,'#192d35');box(c,x,y+h,w,1,'#7e8a78');
+      for(let j=x+9;j<x+w-6;j+=31){box(c,j,y+h-6,8,.75,'#9a9d82');bar(c,j+9,y+h-5,j+11,y+h-2,'#35474b');}
+    }
+    for(let x=387;x<698;x+=52){
+      // Voussoir bands set into the solid vault face. Their lower edge is the true jump limit.
+      arch(c,x+22,325,20,15,'#2c4247',5);arch(c,x+22,325,19,14,'#798075',2);
+      for(let i=0;i<=6;i++){const a=Math.PI+i*Math.PI/6;bar(c,x+22+18*Math.cos(a),325+13*Math.sin(a),x+22+22*Math.cos(a),325+17*Math.sin(a),'#3a4b4e',1);}
+
+    }
+    for(const x of [357,430,541,653,726])lamp(c,x,x<375||x>=700?291:331);
+    for(let i=0;i<4;i++){const x=421+i*73;
+      face(c,[[x,333],[x+16,333],[x-3,385],[x-15,385]],'rgba(192,183,129,.043)');}
+    // Upper floors have open steel webs, so progress is visible through the bridge.
+    for(const [a,b] of [[50,146],[190,1016]]){crossBeam(c,a,214,b-a);box(c,a,214,b-a,.75,'#bec4a6');}    upperRail(c,192,1016,214);upperRail(c,50,80,214);
+    for(let x=206;x<1000;x+=118){bar(c,x,226,x+14,249,'#314950',2.5);bar(c,x+14,249,x+38,226,'#52635f',2);}
+    floor(c,0,292,'stone');floor(c,292,70,'grate');floor(c,362,138,'stone');floor(c,500,70,'grate');floor(c,570,188,'stone');floor(c,758,133,'grate');floor(c,891,229,'plate');
+    // Right wall returns the eye from the pump to the upper deck.
+    box(c,1056,196,32,196,'#23353b');box(c,1056,196,3,196,'#d1bd84');box(c,1059,196,5,196,'#90744b');
+    box(c,1081,196,7,196,'#57706a');box(c,1086,196,1,196,'#98a58d');
+    for(let y=202;y<390;y+=17){box(c,1064,y,17,14,'#35484c');face(c,[[1065,y+8],[1072,y+1],[1078,y+1],[1066,y+13]],'#c08e52');bolt(c,1078,y+10);}
+    c.strokeStyle='#6e6956';c.lineWidth=6;c.beginPath();c.moveTo(1058,208);c.quadraticCurveTo(1047,193,1036,200);c.lineTo(1017,212);c.stroke();
+    c.strokeStyle='#d4aa6a';c.lineWidth=1.3;c.stroke();
+    box(c,1011,211,6,3,'#989577');
+    hoistFittings(c);
+    // Pump controls, with a visible conduit from the floor pedestal to the shaft unit.
+    pipe(c,919,381,72,false,2);pipe(c,985,330,48,true,2);
+    box(c,940,379,12,13,'#56615b');box(c,937,364,20,16,'#293f47');box(c,937,364,20,1.5,'#a3a289');
+    box(c,940,367,11,6,'#18373d');for(let j=0;j<4;j++)box(c,942+j*2,369,1,2,'#719a8b');
+    box(c,939,375,10,1,'#7e9182');box(c,944,379,3,12,'#859082');
+  }
+  function wheel(c,x,y,r){
+    oval(c,x,y,r,r,'#192b34');ring(c,x,y,r-1,r-1,'#54676d',1.4);ring(c,x,y,r-2.3,r-2.3,'#283b47',1.2);
+  }
+  function shaftRecess(c){
+    // A deep iron-lined pump well frames the moving impeller against the distant shaft windows.
+    const x=932,y=219,rx=79;
+    c.fillStyle=gradient(c,850,160,1006,359,[[0,'#2b444e'],[.46,'#1f3743'],[.72,'#233c46'],[1,'#435c5a']]);
+    c.beginPath();c.moveTo(x-rx,391);c.lineTo(x-rx,y);c.ellipse(x,y,rx,117,0,Math.PI,2*Math.PI);
+    c.lineTo(x+rx,391);c.closePath();c.fill();
+    arch(c,x,y,rx,117,'#33494c',6);arch(c,x,y,rx+3,119,'#778479',1.5);
+    for(let j=0;j<15;j++){
+      const a=Math.PI+j*Math.PI/14,dx=Math.cos(a),dy=Math.sin(a);
+      bar(c,x+dx*(rx-2),y+dy*116,x+dx*(rx+4),y+dy*120,'#5a6c64',.8);
+    }
+    for(const px of [864,876,984,996]){pipe(c,px,223,157,true,2.5);
+      box(c,px-4,233,8,3,'#687b73');box(c,px-4,344,8,3,'#687b73');}
+    for(let y=160;y<369;y+=24){
+      const inset=y<204?13:0;
+      bar(c,853+inset,y,1006-inset,y,'#38575c',1);
+      for(let x=869+inset;x<1006-inset;x+=27)box(c,x,y-1,1.5,1.5,'#566b64');
+    }
+    for(const px of [842,1016])lamp(c,px,251,true);
+  }
+  function pump(c,t,on){
+    c.save();c.translate(931,285);
+    pipe(c,0,-143,237,true,9);box(c,-16,-136,32,6,'#5e7975');
+    for(const yy of [-113,-80,-51,54,79]){box(c,-12,yy,24,4,'#71847b');box(c,-12,yy+1,24,1,'#a6a590');}
+    oval(c,0,0,52,52,'#172e39');ring(c,0,0,48,48,'#596d6c',4);ring(c,0,0,40,40,'#849685',2);
+    for(let i=0;i<12;i++){const a=i*Math.PI/6;bolt(c,46*Math.cos(a),46*Math.sin(a));}
+    c.save();c.rotate((on?t*.78:t*.13)%(2*Math.PI));
+    for(let i=0;i<8;i++){face(c,[[4,0],[10,-6],[23,-13],[35,-13],[38,-8],[30,-7],[17,-1],[7,5]],i%2?'#9a8363':'#a18d6c');
+      bar(c,13,-6,31,-12,'#c4ad7d',1.5);c.rotate(Math.PI/4);}
+    c.restore();oval(c,0,0,9,9,'#526869');ring(c,0,0,7,7,'#ae9b77',2);oval(c,0,0,3.5,3.5,'#273e49');
+    c.restore();
+  }
+  function hoistFittings(c){
+    // The pair of ropes passes through open fairleads on the near edge of the catwalk.
+    face(c,[[204,104],[246,102],[250,105],[248,111],[206,112]],'#3c4242');
+    bar(c,204,104,246,102,'#d4a067',1.6);bar(c,206,111,248,109,'#a4714d',1);
+    for(let x=208;x<243;x+=9){bar(c,x,110,x+4,105,'#967551');bar(c,x+4,105,x+8,109,'#705d49');}
+    for(const x of [205,244]){
+      oval(c,x,108,4.4,4.4,'#243741');ring(c,x,108,3.3,3.3,'#a68c66',1);oval(c,x,108,1,1,'#d5b77d');
+      bar(c,x,112,x,209,'#263942',1.7);bar(c,x+.7,112,x+.7,209,'#8f917d',.6);
+      box(c,x-3.7,210,7.4,4,'#35474c');box(c,x-3.7,210,7.4,1,'#a29f85');
+      box(c,x-2,224,4,2,'#2d4249');box(c,x-2,225.5,4,.6,'#a49a79');
+    }
+    // Landing brackets show the stopping height while the empty deck is still overhead.
+    for(const x of [193,251]){
+      box(c,x-1,342,5,9,'#354c52');box(c,x,344,3.5,1.5,'#bb9466');bolt(c,x,348.5);
+    }
+    // Bolted landing cantilevers disappear into the masonry at the right.
+    face(c,[[269,310],[278,310],[291,323],[288,325]],'#3c5152');
+    bar(c,270,311,288,323,'#7d8a79',1);bolt(c,289,323);
+    face(c,[[300,310],[307,310],[319,322],[315,325]],'#374b4e');
+    bar(c,301,311,316,323,'#778679',1);bolt(c,316,323);
+    box(c,267,304,54,8,'#33464d');box(c,267,304,54,1,'#c3c8ad');
+    box(c,268,308,52,2,'#627570');box(c,269,311,50,1,'#1d333d');
+    for(let x=272;x<315;x+=7)box(c,x,306,4,1,'#889785');
+    box(c,280,301.5,30,2.5,'#617367');box(c,281,301.5,28,.65,'#acbaa2');
+  }
+  function serviceLift(c,s){
+    const artY=Number.isFinite(s.liftY)?s.liftY:(s.flags.shortcut?347:242);
+    const y=Math.max(242,Math.min(347,artY)),travel=(y-242)/105;
+    // Drum stripes turn with the paid-out cable. A still winch stays still on both landings.
+    box(c,135,192,12,9,'#293b40');box(c,135,192,12,1,'#987d57');
+    box(c,137,194,8,5,'#725c46');
+    for(let i=0;i<3;i++){const x=137+((i*2.5+travel*24)%7);bar(c,x,198,x+1,194,'#b49d73',.7);}
+    bar(c,138,201,s.flags.shortcut?143:135,197,'#c99a62',1);oval(c,s.flags.shortcut?143:135,197,1.3,1.3,'#e5b979');
+    // A thin counterweight rises in its own darkened cage as the freight carriage descends.
+    const weight=324-66*travel;
+    box(c,189,253,3.5,90,'#294049');box(c,190,253,.65,90,'#647979');
+    box(c,188.4,weight,5,12,'#34464b');box(c,188.4,weight,1.2,12,'#8b8c73');
+    for(const dy of [1,4,7,10])box(c,189.4,weight+dy,3.7,.7,'#a19573');
+    oval(c,223.5,391.2,22+5*travel,.8+.45*travel,'rgba(24,37,42,'+(.12+.2*travel)+')');
+    for(const x of [205,244]){
+      const corner=x<220?196:251;
+      bar(c,x,y-8,corner,y-1,'#283c44',2);bar(c,x,y-8,corner,y-1,'#ae9a74',.75);
+      bar(c,x,226,x,y-3,'#263942',1.8);bar(c,x+.65,226,x+.65,y-3,'#a3a18a',.65);
+      for(let k=y-5;k>230;k-=11)bar(c,x-.5,k,x+.8,k-1.5,'#7e8779',.7);
+      box(c,x-2.2,y-5,4.4,5,'#34474c');box(c,x-1.6,y-4,3,.9,'#d2b17e');
+    }
+    // A worn amber edge sits exactly on the moving collision surface.
+    box(c,194,y,59,8,'#263b44');box(c,194,y,59,1.4,'#e1ba81');
+    box(c,195,y+1.4,57,2.4,'#a27d58');box(c,195,y+4,57,2.7,'#536266');
+    for(let x=199;x<248;x+=11){
+      bar(c,x,y+6,x+5,y+4,'#8e9681',.8);box(c,x+5,y+1.5,3,.8,'#6d614d');
+    }
+    box(c,194,y+3,3,3,'#c99967');box(c,250,y+3,3,3,'#c99967');
+    for(const x of [200,246])bolt(c,x,y+4.7);
+    if(y>242.3&&y<346.7){
+      const phase=Math.floor(s.time*5)%2;
+      box(c,198,y+2,2,1,phase?'#ffe9aa':'#9e8055');box(c,247,y+2,2,1,phase?'#9e8055':'#ffe9aa');
+    }
+    // The service part has an open helical silhouette and two ceramic end collars.
+    box(c,289,299,15,3,'#344849');box(c,290,299,13,.8,s.flags.serviceCoil?'#75877a':'#b2bca0');
+    if(!s.flags.serviceCoil){
+      halo(c,296,293,11,'rgba(148,222,168,.19)');
+      box(c,294.7,286,2.7,12,'#577575');box(c,292,285.5,8,1.6,'#c4d7ad');
+      for(let y0=289;y0<299;y0+=3){
+        bar(c,291,y0+.4,301,y0-2.6,'#2c665d',2.3);
+        bar(c,291.5,y0,300.5,y0-2.7,'#a9e3b9',1.1);
+      }
+      box(c,292,297.5,8,1.5,'#b7caa5');
+    }
+  }
+  function sorter(c,s){
+    const {x,y,w,h}=root.DockwardModel.landmarks.sorter;
+    const edge=x+w;
+    // Recess the gallery into the masonry and keep its entry lip in silhouette.
+    box(c,x,226,w,y-226,'#172b32');
+    for(let post=x+22;post<edge;post+=56){
+      box(c,post,226,3,20,'#30444a');
+      bar(c,post+3,244,post+21,227,'#354a4d',2);
+      box(c,post+6,227,8,1.5,s.flags.magnet?'#b8c8a1':'#576b68');
+    }
+    box(c,x,y,w,h,'#385256');box(c,x,y,w,1,'#e3c58e');
+    const phase=s.flags.magnet?s.time*11:0;
+    for(let axle=x+4;axle<edge;axle+=9){
+      oval(c,axle,y+3,2.4,2,'#172e36');
+      box(c,axle+Math.sin(phase),y+3+Math.cos(phase),1,1,'#ad9f80');
+    }
+    // Brass splice plates travel with the upper chain, visible from the coil shelf.
+    const advance=s.flags.magnet?(s.time*30)%48:0;
+    for(let tooth=x+advance;tooth<edge-4;tooth+=48){
+      bar(c,tooth,y+4,tooth+3,y+2,'#d4b883',1.35);
+    }
+    // Flared edges frame the open throat without painting across the wheel path.
+    face(c,[[x,226],[x+15,226],[x+9,230],[x,230]],'#866a4a');
+    bar(c,x,229,x+9,229,'#e4bd82',1.2);
+    box(c,x,y,18,2,'#f1cb8e');
+    for(let k=0;k<3;k++)bar(c,x+k*5,y+h-1,x+2+k*5,y+2,'#b99668',1.3);
+    // A trolley trips the brass bell as its front axle enters the unloading bay.
+    const bell=root.DockwardModel.landmarks.sorterBell.x;    const nose=s.p.x+s.p.w;
+    const tripDistance=nose-bell;
+    const deflection=Math.abs(s.p.y+s.p.h-y)<.1 && tripDistance>=0 && tripDistance<34
+      ? Math.sin(tripDistance*.28)*Math.exp(-tripDistance*.08)*.48 : 0;
+    c.save();c.translate(bell,227);c.rotate(-deflection);
+    bar(c,0,0,0,5,'#bec1a4',1.3);
+    face(c,[[-2,3],[2,3],[3,8],[4,9],[-4,9],[-3,8]],'#c59a63');
+    bar(c,-4,9,4,9,'#f0d49b',1);oval(c,0,10,1,1,'#b49c78');c.restore();
+    for(const end of [x,edge-4]){
+      box(c,end,y,4,h,'#e0ad65');box(c,end,226,4,2,'#d5ae72');
+    }
+  }
+  function reward(c,on,t){
+    if(!on){
+      halo(c,121,195,14,'rgba(247,183,89,.35)');box(c,116,187,10,12,'#785536');box(c,117,187,8,1.5,'#fae3a3');
+      box(c,118,189,6,8,'#d89c50');box(c,119,190,2,5,'#fff0b6');box(c,116,198,10,2,'#625744');
+      if(Math.sin(t*3)>.65)box(c,124,188,1.5,1.5,'#fff2ba');
+      box(c,146,214,44,3,'#899383');for(let x=148;x<188;x+=4){box(c,x,215,2,2,'#3a5153');}
+      box(c,148,218,40,1,'#425958');
+    }else{
+      box(c,117,192,9,7,'#46594f');box(c,118,192,7,1,'#81958a');
+      for(const x of [164,175]){box(c,x,205,1.75,187,'#536866');box(c,x,205,.75,187,'#b0aa85');}
+      for(let y=213;y<389;y+=8){box(c,165,y,10,1.5,'#858f79');box(c,165,y+1,10,1,'#3c5757');}
+    }
+  }
+  function water(c,t,cx,zoom){
+    const start=Math.max(0,Math.floor(cx/24)*24-24),end=Math.min(W,cx+VW/zoom+24);
+    for(let x=start;x<end;x+=24){const v=hash(x,39),x1=x+(v%10),tw=(v>>>4)%15;
+      if(x>=290&&x<362||x>500&&x<570||x>=750&&x<890)continue;
+      const y=390+((v>>>7)%3)*.5;const n=.18+.14*Math.sin(t*1.4+x*.07);
+      box(c,x1,y,4+tw,.45,'rgba(181,215,200,'+n+')');
+    }
+  }
+  function foreground(c,cx,cy,zoom){
+    c.save();c.scale(zoom,zoom);c.translate(-round(cx*1.08),-round(cy*1.025));
+    // Short suspended details at the edges of the view leave both walking decks clear.
+    for(const [x,y,len] of [[31,92,37],[308,112,30],[775,105,46],[1117,110,64]]){
+      box(c,x,y,5,3,'#25373e');for(let i=0;i<len;i+=4){ring(c,x+2,y+i+4,i%8?.75:1.5,2.5,'#293b41',1);}
+    }c.restore();
+  }
+  function rover(c,p,t,coil){
+    const x=p.x+p.w/2,y=p.y+p.h/2,tilt=p.climbing==='wall'?-Math.PI/2:0;
+    c.save();c.translate(x,y);c.rotate(tilt);c.scale(tilt?1:p.face<0?-1:1,1);
+    const turn=p.onGround?Math.floor(p.x*1.5):Math.floor(t*8);
+    for(const wx of [-7.5,7.5]){
+      wheel(c,wx,4.5,4.35);ring(c,wx,4.5,2.5,2.5,'#ba614b',1);oval(c,wx,4.5,1.13,1.13,'#bad2c3');
+      for(let i=0;i<6;i++){const a=(i*Math.PI/3+turn*.13);box(c,wx+3.52*Math.cos(a)-.25,4.5+3.52*Math.sin(a)-.25,.65,.65,'#8b9590');}
+    }
+    face(c,[[-11,-3],[-7,-6],[-3,-7.5],[3,-7.5],[6,-4],[11,-3],[11,0],[8,1],[4,1],[2,3],[-4,3],[-6,.5],[-10,.5]],'#26353c');
+    face(c,[[-11,-3.5],[-8,-5],[-2,-5.5],[4,-5.5],[7,-3.5],[10.5,-3],[9,0],[6,-1],[2,1],[-4,1],[-8,-.5],[-11,-1]],'#c9c6a7');
+    face(c,[[-9,-3.5],[-3,-3.3],[1,-2],[6,-3],[10,-2.5],[8,-.7],[5,-1],[1,0],[-4,-.5],[-8,-1.8]],'#b65e4b');
+    face(c,[[-5,-5.5],[-3,-8],[2,-8],[5,-5.4]],'#e2d9b2');face(c,[[-2.5,-7.1],[1.5,-7.1],[3,-5.7],[-3.5,-5.7]],'#476c78');box(c,-2.5,-7,2,.6,'#a5d1c0');
+    box(c,3,-4.8,8.3,1.4,'#283c46');box(c,5,-4.9,6.2,.65,'#a1b3aa');box(c,11,-5,1.4,2,'#677a78');
+    if(coil)for(const wx of [-6,6]){bar(c,wx-1,2,wx+1,0,'#9ed4a9',1);bar(c,wx,3,wx+2,1,'#6eaa8d',.8);}
+    box(c,8.5,-2,1.7,1,'#ffe2a4');box(c,-10.8,-2.3,1.1,1.3,'#e28d67');c.restore();
+  }
+  function makeBacking(){
+    // Bake the architecture at the same resolution as the game's 768×432 canvas.
+    let b;if(typeof OffscreenCanvas==='function')b=new OffscreenCanvas(W*2,H*2);
+    else if(typeof document!=='undefined'&&document.createElement){b=document.createElement('canvas');b.width=W*2;b.height=H*2;}
+    if(!b)return null;
+    const c=b.getContext('2d');if(!c)return null;c.scale(2,2);drawStatic(c);return b;
+  }
+  function draw(c,state,options={}){
+    const cx=state.camera.x,cy=state.camera.y,zoom=state.camera.zoom||1,t=state.time||0;
+    const sx=c.canvas.width/VW,sy=c.canvas.height/VH;
+    c.save();c.setTransform(sx,0,0,sy,0,0);c.imageSmoothingEnabled=false;
+    distant(c,cx,cy,zoom);
+    c.save();c.scale(zoom,zoom);c.translate(-cx,-cy);
+    shaftRecess(c);pump(c,t,state.flags.magnet);
+    if(!backing)backing=makeBacking();
+    if(backing)c.drawImage(backing,0,0,W,H);else drawStatic(c);
+    sorter(c,state);serviceLift(c,state);reward(c,state.flags.shortcut,t);water(c,t,cx,zoom);
+    lamp(c,953,364,state.flags.magnet);box(c,950,370,3,1.5,state.flags.magnet?'#b6e0b7':'#f0b479');
+    const p=state.p;
+    if(p.onGround&&!p.climbing)oval(c,p.x+p.w/2,p.y+p.h+.15,p.w*.45,1.2,'rgba(12,29,34,.35)');
+    if(typeof options.drawRover==='function')options.drawRover(c,p,state);else rover(c,p,t,state.flags.serviceCoil);
+    c.restore();foreground(c,cx,cy,zoom);c.restore();
+  }
+  return {draw};
+})();
+  if(typeof module==='object'&&module.exports)module.exports=api;
+  if(root)root.DockwardPaint=api;
+})(typeof globalThis==='undefined'?this:globalThis);
+  </script>
+  <script>
+(function () {
+  'use strict';
+  const model = window.DockwardModel;
+  const paint = window.DockwardPaint;
+  const canvas = document.getElementById('dock');
+  const context = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const play = document.getElementById('play');
+  const pause = document.getElementById('pause');
+  const audioButton = document.getElementById('audio');
+  const status = document.getElementById('status');
+  const back = document.getElementById('return');
+  const embedded = window.parent !== window;
+  const key = 'deep-relay-crane-dock-v1';
+  const saved = name => {
+    try { return JSON.parse(window.localStorage.getItem(name)) || {}; }
+    catch (_) { return {}; }
+  };
+  if (!model || !paint) { status.textContent = 'Game files could not be loaded.'; return; }
+  const old = saved(key);
+  const campaign = saved('deep-relay-save-v2');
+  const state = model.create({flags: {
+    magnet: old.flags?.magnet === true || campaign.flags?.magnet === true,
+    shortcut: old.flags?.shortcut === true,
+    serviceCoil: old.flags?.serviceCoil === true
+  }});
+  const keyboard = new Map();
+  const pointers = new Map();
+  const pendingTap = new Set();
+  const names = {ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',ArrowUp:'up',
+    KeyW:'up',ArrowDown:'down',KeyS:'down',Space:'jump',KeyE:'action'};
+  let gamepad = {};
+  let active = false;
+  let last = 0;
+  let frame = 0;
+  let bank = 0;
+  let feedback = '';
+  let feedbackTime = 0;
+  let synth = null;
+  let sound = false;
+  let lastPadPause = false;
+  let padWatch = null;
+  const controls = ['left','right','up','down','jump','action'];
+  function remember() {
+    try { window.localStorage.setItem(key,JSON.stringify(model.snapshot(state))); } catch (_) {}
+  }
+  function clearInputs() {
+    keyboard.clear(); pointers.clear(); pendingTap.clear(); gamepad = {};
+  }
+  function say(text) {
+    if (status.textContent !== text) status.textContent = text;
+  }
+  function updateStatus() {
+    say(feedbackTime > 0 ? feedback : model.prompt(state) || 'Crane Dock');
+  }
+  const tones = {
+    jump:[[95,.085,56,.045]], land:[[76,.11,38,.065]],
+    climb:[[130,.065,87,.025]], power:[[130.8,.3,130.8,.08],[196,.4,196,.055],[261.6,.42,261.6,.042]],
+    shortcut:[[155,.16,72,.065],[88,1.65,49,.045]],
+    sorterBell:[[640,.19,630,.047],[962,.31,949,.024]],
+    liftDock:[[71,.18,38,.09],[142,.28,91,.035]],
+    serviceCoil:[[196,.20,196,.065],[246.94,.24,246.94,.052],[293.66,.48,293.66,.042]]
+  };
+  const messages = {    power:'Magnetic wheels engaged',
+    shortcut:'Winch released',
+    liftDock:'Service lift locked into position',
+    serviceCoil:'Suspension coil fitted. Your rover can jump higher.'
+  };
+  function cue(name) {
+    if (!sound || !synth || synth.state !== 'running') return;
+    const notes = tones[name] || [];
+    notes.forEach(([hz,sec,end,volume],i) => {
+      const osc=synth.createOscillator(),gain=synth.createGain(),at=synth.currentTime+i*.085;
+      osc.type = i ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(hz,at);osc.frequency.exponentialRampToValueAtTime(end,at+sec);
+      gain.gain.setValueAtTime(.0001,at);gain.gain.exponentialRampToValueAtTime(volume,at+.012);
+      gain.gain.exponentialRampToValueAtTime(.0001,at+sec);
+      osc.connect(gain);gain.connect(synth.destination);osc.start(at);osc.stop(at+sec+.01);
+      osc.onended=()=>{osc.disconnect();gain.disconnect();};
+    });
+  }
+  async function toggleSound() {
+    try {
+      const Audio=window.AudioContext || window.webkitAudioContext;
+      if (!Audio) throw new Error('audio');
+      synth ||= new Audio();
+      if (!sound) await synth.resume(); else await synth.suspend();
+      sound = !sound; audioButton.setAttribute('aria-pressed',String(sound));
+      audioButton.textContent = sound ? 'Sound on' : 'Sound off';
+    } catch (_) { audioButton.textContent='Sound unavailable'; }
+    if (active) canvas.focus({preventScroll:true});
+  }
+  function connectedPad() {
+    try { return Array.from(navigator.getGamepads?.() || []).find(pad=>pad?.connected); }
+    catch (_) { return null; }
+  }
+  function pollPad(p) {
+    if(!p){gamepad={};lastPadPause=false;return;}
+    const b=i=>!!p.buttons[i]?.pressed;
+    gamepad={left:b(14)||p.axes[0]<-.42,right:b(15)||p.axes[0]>.42,up:b(12)||p.axes[1]<-.42,
+      down:b(13)||p.axes[1]>.42,jump:b(0),action:b(2)||b(3)};
+    const now=b(9);
+    const pressed=now&&!lastPadPause;
+    lastPadPause=now;
+    if(pressed&&!document.hidden&&document.hasFocus?.()!==false) setActive(!active);
+  }
+  function watchPausedPad() {
+    if(padWatch!==null)clearTimeout(padWatch);
+    padWatch=null;
+    if(active||document.hidden||document.hasFocus?.()===false)return;
+    const pad=connectedPad();
+    if(!pad){lastPadPause=false;return;}
+    padWatch=setTimeout(()=>{
+      padWatch=null;
+      if(active||document.hidden||document.hasFocus?.()===false)return;
+      pollPad(connectedPad());
+      if(!active)watchPausedPad();
+    },100);
+  }
+  function setActive(value) {
+    clearInputs();bank=0;last=0;
+    active=value;overlay.hidden=value;
+    if(padWatch!==null){clearTimeout(padWatch);padWatch=null;}
+    if(value){
+      pause.disabled=false;pause.textContent='Pause';
+      if(sound&&synth?.state==='suspended')synth.resume().catch(()=>{});
+      canvas.focus({preventScroll:true});
+      if(!frame)frame=requestAnimationFrame(draw);
+    }else{
+      if(frame)cancelAnimationFrame(frame);frame=0;
+      if(sound&&synth?.state==='running')synth.suspend().catch(()=>{});
+      play.textContent='Continue';pause.textContent='Continue';
+      remember();play.focus({preventScroll:true});
+      watchPausedPad();
+    }
+    updateStatus();
+  }
+  function draw(now) {
+    frame=0;if(!active)return;
+    const elapsed=last?Math.min((now-last)/1000,.10):0;last=now;
+    pollPad(connectedPad());if(!active)return;
+    const held=new Set([...keyboard.values(),...pointers.values()]);
+    const input=Object.fromEntries(controls.map(k=>[k,held.has(k)||!!gamepad[k]]));
+    bank+=elapsed;
+    while(bank>=1/60){
+      // A press and release between animation frames still gets one simulation tick.
+      const tapped=pendingTap.size?{...input}:input;
+      for(const action of pendingTap)tapped[action]=true;
+      pendingTap.clear();
+      model.step(state,tapped,1/60);bank-=1/60;
+      if(state.event){
+        cue(state.event);
+        if(messages[state.event]){
+          if(state.event!=='liftDock')remember();
+          feedback=messages[state.event];feedbackTime=state.event==='serviceCoil'?3.5:1.8;
+        }
+      }
+      feedbackTime=Math.max(0,feedbackTime-1/60);
+    }
+    paint.draw(context,state);updateStatus();
+    if(active)frame=requestAnimationFrame(draw);
+  }
+  window.addEventListener('keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey)return;
+    if(!active){if((e.code==='Enter'||e.code==='Space')&&document.activeElement===play){e.preventDefault();setActive(true);}return;}
+    if(e.code==='Escape'||e.code==='KeyP'){e.preventDefault();if(!e.repeat)setActive(false);return;}
+    const control=names[e.code];
+    if(control){
+      e.preventDefault();
+      if(!e.repeat&&(control==='jump'||control==='action'))pendingTap.add(control);
+      keyboard.set(e.code,control);
+    }
+  });
+  window.addEventListener('keyup',e=>keyboard.delete(e.code));
+  for(const button of document.querySelectorAll('[data-control]')){
+    button.addEventListener('pointerdown',e=>{
+      if(!active)return;
+      const control=button.dataset.control;
+      e.preventDefault();pointers.set(e.pointerId,control);
+      if(control==='jump'||control==='action')pendingTap.add(control);
+      button.setPointerCapture?.(e.pointerId);
+    });
+    for(const type of ['pointerup','pointercancel','lostpointercapture']){
+      button.addEventListener(type,e=>pointers.delete(e.pointerId));
+    }
+  }
+  window.addEventListener('blur',()=>{if(active)setActive(false);});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden&&active)setActive(false);});
+  window.addEventListener('gamepadconnected',watchPausedPad);
+  window.addEventListener('gamepaddisconnected',watchPausedPad);
+  window.addEventListener('focus',watchPausedPad);
+  window.addEventListener('pagehide',remember);
+  play.addEventListener('click',()=>setActive(true));
+  pause.addEventListener('click',()=>setActive(!active));
+  audioButton.addEventListener('click',toggleSound);
+  if(embedded){
+    back.href='#return';
+    back.addEventListener('click',e=>{e.preventDefault();if(active)setActive(false);remember();window.parent.postMessage('deep-relay:leave-crane-dock','*');});
+  }else if(location.protocol==='file:'&&!/\/(dockward\/index|prototype\/deep-relay-crane-dock)\.html$/i.test(location.pathname)){
+    back.hidden=true;
+  }
+  paint.draw(context,state);updateStatus();watchPausedPad();
+})();
+  </script>
+</body>
+</html>
