@@ -1,0 +1,15 @@
+name: Verify Crane Dock route
+on:
+  push:
+    paths:
+      - 'prototype/deep-relay-crane-dock.html'
+      - 'prototype/crane-dock-route.test.cjs'
+      - '.github/workflows/verify-crane-dock.yml'
+  workflow_dispatch:
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run route regression
+        run: node --test prototype/crane-dock-route.test.cjs
